@@ -1,0 +1,277 @@
+gui
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生活模拟器 2D</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <cdiv class="game-wrapper">
+        <div lass="game-container">
+            <div class="game-canvas-container">
+                <canvas id="gameCanvas" width="1200" height="700"></canvas>
+                
+                <div class="game-hud">
+                    <div class="left-panel">
+                        <div class="header-info">
+                            <span class="day">� 第 <span id="day">1</span> 天</span>
+                            <span class="time">🕐 <span id="time">06:30</span></span>
+                        </div>
+                        
+                        <div class="stats-circles">
+                            <div class="stat-circle">
+                                <div class="circle-progress health-circle" id="health-circle">
+                                    <span class="circle-value">100</span>
+                                    <span class="circle-icon">❤️</span>
+                                </div>
+                                <span class="circle-label">生命</span>
+                            </div>
+                            <div class="stat-circle">
+                                <div class="circle-progress energy-circle" id="energy-circle">
+                                    <span class="circle-value">100</span>
+                                    <span class="circle-icon">⚡</span>
+                                </div>
+                                <span class="circle-label">精神</span>
+                            </div>
+                            <div class="stat-circle">
+                                <div class="circle-progress food-circle" id="food-circle">
+                                    <span class="circle-value">90</span>
+                                    <span class="circle-icon">🍖</span>
+                                </div>
+                                <span class="circle-label">饱食</span>
+                            </div>
+                            <div class="stat-circle">
+                                <div class="circle-progress water-circle" id="water-circle">
+                                    <span class="circle-value">90</span>
+                                    <span class="circle-icon">💧</span>
+                                </div>
+                                <span class="circle-label">水份</span>
+                            </div>
+                            <div class="stat-circle">
+                                <div class="money-box" id="money-box">
+                                    <span class="money-icon">💰</span>
+                                    <span class="money-value">1000</span>
+                                </div>
+                                <span class="circle-label">金钱</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="minimap-container">
+                        <canvas id="minimap" width="150" height="100"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="interaction-panel" id="interaction-panel">
+                <h3 id="building-name">建筑名称</h3>
+                <p id="building-desc">建筑描述</p>
+                <div id="building-actions"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-over-modal" class="modal">
+        <div class="modal-content">
+            <h2>🎮 游戏结束</h2>
+            <div class="game-over-stats">
+                <p>生存天数: <span id="final-day">0</span> 天</p>
+                <p>最终余额: <span id="final-money">0</span></p>
+            </div>
+            <p id="game-over-reason"></p>
+            <button class="restart-btn" onclick="restartGame()">🔄 重新开始</button>
+        </div>
+    </div>
+
+    <div id="sleep-modal" class="modal">
+        <div class="modal-content">
+            <h2>🌙 夜深了</h2>
+            <p>已经22点了，该休息了。你想怎么度过今晚？</p>
+            <div class="sleep-options">
+                <button class="sleep-btn outdoor-btn" onclick="sleepOutdoor()">🌿 露宿街边</button>
+                <button class="sleep-btn hotel-btn" onclick="showHotelOptions()">🏨 住旅馆</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="hotel-modal" class="modal">
+        <div class="modal-content">
+            <h2>🏨 旅馆</h2>
+            <p>选择一个房间：</p>
+            <div class="hotel-options">
+                <div class="hotel-room" data-id="ironBed">
+                    <h3>🛏️ 低配铁架床房</h3>
+                    <p class="room-desc">普通的铁架床，只有一块硬床垫</p>
+                    <p class="room-price">💰 20元</p>
+                    <p class="room-effects">⚡ +30精神 ❤️ -5健康</p>
+                    <button class="room-btn" onclick="bookRoom('ironBed')">预订</button>
+                </div>
+                <div class="hotel-room" data-id="simpleRoom">
+                    <h3>🏠 简易单人房</h3>
+                    <p class="room-desc">简单的设施，但是没有好的隔音</p>
+                    <p class="room-price">💰 50元</p>
+                    <p class="room-effects">⚡ +30精神 ❤️ -2健康</p>
+                    <button class="room-btn" onclick="bookRoom('simpleRoom')">预订</button>
+                </div>
+                <div class="hotel-room" data-id="normalRoom">
+                    <h3>🏢 普通单人房</h3>
+                    <p class="room-desc">标准的单人房间，舒适整洁</p>
+                    <p class="room-price">💰 110元</p>
+                    <p class="room-effects">⚡ +50精神</p>
+                    <button class="room-btn" onclick="bookRoom('normalRoom')">预订</button>
+                </div>
+                <div class="hotel-room" data-id="luxuryRoom">
+                    <h3>⭐ 豪华单人房</h3>
+                    <p class="room-desc">豪华的单人套房，享受最佳服务</p>
+                    <p class="room-price">💰 156元</p>
+                    <p class="room-effects">⚡ 加满精神</p>
+                    <button class="room-btn" onclick="bookRoom('luxuryRoom')">预订</button>
+                </div>
+            </div>
+            <button class="cancel-btn" onclick="closeHotelModal()">❌ 返回</button>
+        </div>
+    </div>
+
+    <div id="notification" class="notification"></div>
+
+    <div id="sleep-fade" class="sleep-fade"></div>
+
+    <button id="unstuck-btn" class="unstuck-btn" onclick="unstuckPlayer()">🚀</button>
+
+    <div id="fastfood-interior" class="interior-modal">
+        <div class="interior-scene">
+            <div class="interior-hud">
+                <div class="interior-day">📅 第 <span id="interior-day">1</span> 天</div>
+                <div class="interior-time">🕐 <span id="interior-time">06:30</span></div>
+                <div class="interior-money">💰 <span id="interior-money">1000</span></div>
+                <div class="interior-stats">
+                    <span class="interior-stat">❤️<span id="interior-health">100</span></span>
+                    <span class="interior-stat">⚡<span id="interior-energy">100</span></span>
+                    <span class="interior-stat">🍖<span id="interior-food">90</span></span>
+                    <span class="interior-stat">💧<span id="interior-water">90</span></span>
+                </div>
+            </div>
+            
+            <div class="store-wall-back">
+                <div class="store-window"></div>
+            </div>
+            <div class="store-wall-left"></div>
+            <div class="store-wall-right"></div>
+            <div class="store-walls"></div>
+            
+            <div class="light-fixture"></div>
+            <div class="light-rays"></div>
+            
+            <div class="decoration-plants">🌱</div>
+            <div class="decoration-plants-right">🌱</div>
+            
+            <div class="store-floor"></div>
+            <div class="floor-pattern"></div>
+            
+            <div class="number-display">
+                <div class="display-left">
+                    <div class="display-label">制作中</div>
+                    <div class="display-numbers" id="display-pending">--</div>
+                </div>
+                <div class="display-divider"></div>
+                <div class="display-right">
+                    <div class="display-label">已完成</div>
+                    <div class="display-numbers" id="display-ready">--</div>
+                </div>
+            </div>
+            
+            <div class="counter-area">
+                <div class="counter-back"></div>
+                <div class="counter-top"></div>
+                <div class="cash-register">🖥️</div>
+                <div class="counter-plant">🪴</div>
+                <div class="staff">👨‍🍳</div>
+                <div class="food-tray" id="food-tray">
+                    <div class="tray-plate"></div>
+                    <div class="tray-food" id="tray-food"></div>
+                </div>
+            </div>
+            
+            <div class="table-left">
+                <div class="table"></div>
+                <div class="chair-left">🪑</div>
+                <div class="chair-right">🪑</div>
+                <div class="table-tray" id="table-tray-left"></div>
+            </div>
+            
+            <div class="table-right">
+                <div class="table"></div>
+                <div class="chair-left">🪑</div>
+                <div class="chair-right">🪑</div>
+                <div class="table-tray" id="table-tray-right"></div>
+            </div>
+            
+            <div class="eating-animation" id="eating-animation"></div>
+            
+            <div id="tray-hint" class="tray-hint">按 E 取走餐盘</div>
+            <div id="place-hint" class="place-hint">按 E 放下餐盘</div>
+            <div id="eat-hint" class="eat-hint">按 E 食用</div>
+            
+            <div class="exit-line"></div>
+            <div id="exit-hint" class="exit-hint">按 F 离开</div>
+            
+            <div class="player-in-store">🧑</div>
+            <div class="held-tray" id="held-tray"></div>
+            
+            <div class="interaction-hint">按 F 键与店员交流</div>
+        </div>
+    </div>
+
+    <div id="order-modal" class="order-modal">
+                <div class="order-container">
+                    <div class="order-title">🍔 点餐</div>
+                    <div class="order-items">
+                        <div class="order-item">
+                            <div class="order-item-img">🍔</div>
+                            <div class="order-item-info">
+                                <div class="order-item-name">汉堡</div>
+                                <div class="order-item-price">¥40</div>
+                            </div>
+                            <div class="order-item-checkbox" data-item="burger"></div>
+                        </div>
+                        <div class="order-item">
+                            <div class="order-item-img">🍗</div>
+                            <div class="order-item-info">
+                                <div class="order-item-name">炸鸡</div>
+                                <div class="order-item-price">¥25</div>
+                            </div>
+                            <div class="order-item-checkbox" data-item="chicken"></div>
+                        </div>
+                        <div class="order-item">
+                            <div class="order-item-img">🍟</div>
+                            <div class="order-item-info">
+                                <div class="order-item-name">薯条</div>
+                                <div class="order-item-price">¥15</div>
+                            </div>
+                            <div class="order-item-checkbox" data-item="fries"></div>
+                        </div>
+                        <div class="order-item">
+                            <div class="order-item-img">🥤</div>
+                            <div class="order-item-info">
+                                <div class="order-item-name">饮料</div>
+                                <div class="order-item-price">¥20</div>
+                            </div>
+                            <div class="order-item-checkbox" data-item="drink"></div>
+                        </div>
+                    </div>
+            <div class="order-total">
+                <span>总计:</span>
+                <span id="order-total-price">¥0</span>
+            </div>
+            <div class="order-buttons">
+                <button class="order-btn order-cancel" onclick="cancelOrder()">取消</button>
+                <button class="order-btn order-confirm" onclick="confirmOrder()">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
