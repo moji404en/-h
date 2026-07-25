@@ -156,6 +156,19 @@ const buildings = [
         ]
     },
     {
+        id: 'internetCafe',
+        name: '🖥️ 网吧',
+        desc: '上网娱乐，恢复精神度但消耗金钱',
+        x: 2400,
+        y: 1750,
+        width: 140,
+        height: 120,
+        color: '#00CED1',
+        actions: [
+            { name: '上网娱乐', effects: { money: -15, energy: 30, health: -5 }, moneyRequired: 15 }
+        ]
+    },
+    {
         id: 'library',
         name: '📚 图书馆',
         desc: '休息放松，恢复精神度',
@@ -256,10 +269,19 @@ function initGame() {
         keys[e.key.toLowerCase()] = true;
         if (e.key.toLowerCase() === 'f') {
             if (isInInterior) {
-                if (isNearDoor()) {
-                    exitInterior();
-                } else if (isNearStaff()) {
-                    talkToStaff();
+                const fastfoodInterior = document.getElementById('fastfood-interior');
+                const restaurantInterior = document.getElementById('restaurant-interior');
+                
+                if (fastfoodInterior && fastfoodInterior.classList.contains('show')) {
+                    if (isNearDoor()) {
+                        exitInterior();
+                    } else if (isNearStaff()) {
+                        talkToStaff();
+                    }
+                } else if (restaurantInterior && restaurantInterior.classList.contains('show')) {
+                    if (isNearRestaurantExit()) {
+                        exitInterior();
+                    }
                 }
             } else {
                 interactWithBuilding();
@@ -267,14 +289,29 @@ function initGame() {
         }
         if (e.key.toLowerCase() === 'e') {
             if (isInInterior) {
-                if (isNearFoodTray()) {
-                    takeTray();
-                } else if (isHoldingTray && isNearTable()) {
-                    placeTray();
-                } else if (isNearTableTray()) {
-                    eatFood();
+                const fastfoodInterior = document.getElementById('fastfood-interior');
+                const restaurantInterior = document.getElementById('restaurant-interior');
+                
+                if (fastfoodInterior && fastfoodInterior.classList.contains('show')) {
+                    if (isNearFoodTray()) {
+                        takeTray();
+                    } else if (isHoldingTray) {
+                        const nearTable = isNearTable();
+                        if (nearTable) {
+                            placeTray(nearTable);
+                        }
+                    } else if (isNearTableTray()) {
+                        eatFood();
+                    }
+                } else if (restaurantInterior && restaurantInterior.classList.contains('show')) {
+                    if (isNearRestaurantMenu()) {
+                        openRestaurantMenu();
+                    }
                 }
             }
+        }
+        if (e.key === 'Escape') {
+            closeRestaurantMenu();
         }
         if (e.key.toLowerCase() === 't') {
             skipToNight();
@@ -407,8 +444,16 @@ function update() {
     if (isSleeping) return;
     
     if (isInInterior) {
-        updateInteriorMovement();
-        updateInteriorHUD();
+        const fastfoodInterior = document.getElementById('fastfood-interior');
+        const restaurantInterior = document.getElementById('restaurant-interior');
+        
+        if (fastfoodInterior && fastfoodInterior.classList.contains('show')) {
+            updateInteriorMovement();
+            updateInteriorHUD();
+        } else if (restaurantInterior && restaurantInterior.classList.contains('show')) {
+            updateRestaurantMovement();
+            updateRestaurantHUD();
+        }
         return;
     }
     
@@ -843,6 +888,8 @@ function interactWithBuilding() {
         showHotelOptions();
     } else if (currentBuilding.id === 'restaurant') {
         enterFastfoodInterior();
+    } else if (currentBuilding.id === 'foodShop') {
+        enterRestaurantInterior();
     } else {
         showNotification(`📍 你来到了 ${currentBuilding.name}！`);
         addLog(`来到了 ${currentBuilding.name}`);
@@ -861,6 +908,158 @@ function enterFastfoodInterior() {
     updateInteriorHUD();
     showNotification('🚪 进入了快餐店！');
     addLog('进入了🍔快餐店');
+}
+
+let restaurantPos = { x: 320, y: 380 };
+
+function enterRestaurantInterior() {
+    document.getElementById('restaurant-interior').classList.add('show');
+    isInInterior = true;
+    restaurantPos = { x: 200, y: 300 };
+    const playerEl = document.querySelector('.player-in-restaurant');
+    if (playerEl) {
+        playerEl.style.left = restaurantPos.x + 'px';
+        playerEl.style.top = restaurantPos.y + 'px';
+    }
+    updateRestaurantHUD();
+    updateRestaurantHints();
+    showNotification('🚪 进入了餐厅！');
+    addLog('进入了🍜餐厅');
+}
+
+function updateRestaurantHUD() {
+    document.getElementById('restaurant-day').textContent = STATS.day;
+    document.getElementById('restaurant-time').textContent = formatTime(currentHour, currentMinute);
+    document.getElementById('restaurant-money').textContent = STATS.money;
+    document.getElementById('restaurant-health').textContent = STATS.health + '%';
+    document.getElementById('restaurant-energy').textContent = STATS.energy + '%';
+    document.getElementById('restaurant-food').textContent = STATS.food + '%';
+    document.getElementById('restaurant-water').textContent = STATS.water + '%';
+}
+
+let restaurantNearDoor = false;
+
+function updateRestaurantMovement() {
+    if (isSleepTime) return;
+    
+    const speed = 3;
+    const playerWidth = 40;
+    const playerHeight = 60;
+    const playerEl = document.querySelector('.player-in-restaurant');
+    const interiorScene = document.querySelector('.restaurant-scene');
+    
+    if (!playerEl || !interiorScene) return;
+    
+    const sceneRect = interiorScene.getBoundingClientRect();
+    
+    let newX = restaurantPos.x;
+    let newY = restaurantPos.y;
+    
+    if (keys['w'] || keys['arrowup']) newY -= speed;
+    if (keys['s'] || keys['arrowdown']) newY += speed;
+    if (keys['a'] || keys['arrowleft']) newX -= speed;
+    if (keys['d'] || keys['arrowright']) newX += speed;
+    
+    newX = Math.max(-5, Math.min(sceneRect.width - 35, newX));
+    newY = Math.max(90, Math.min(sceneRect.height - 50, newY));
+    
+    if (!checkRestaurantCollision(newX, restaurantPos.y, playerWidth, playerHeight)) {
+        restaurantPos.x = newX;
+    }
+    if (!checkRestaurantCollision(restaurantPos.x, newY, playerWidth, playerHeight)) {
+        restaurantPos.y = newY;
+    }
+    
+    playerEl.style.left = restaurantPos.x + 'px';
+    playerEl.style.top = restaurantPos.y + 'px';
+    
+    updateRestaurantHints();
+}
+
+function checkRestaurantCollision(x, y, width, height) {
+    const counterBackEl = document.querySelector('.restaurant-counter-back');
+    if (counterBackEl) {
+        const counterRect = counterBackEl.getBoundingClientRect();
+        const sceneRect = document.querySelector('.restaurant-scene').getBoundingClientRect();
+        
+        const counterX = counterRect.left - sceneRect.left;
+        const counterY = counterRect.top - sceneRect.top;
+        const counterW = counterRect.width;
+        const counterH = counterRect.height;
+        
+        if (x < counterX + counterW &&
+            x + width > counterX &&
+            y < counterY + counterH &&
+            y + height > counterY) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function updateRestaurantHints() {
+    const exitHint = document.getElementById('restaurant-exit-hint');
+    const menuHint = document.getElementById('restaurant-menu-hint');
+    const playerEl = document.querySelector('.player-in-restaurant');
+    const interiorScene = document.querySelector('.restaurant-scene');
+    if (!playerEl || !interiorScene) return;
+    
+    const playerRect = playerEl.getBoundingClientRect();
+    const sceneRect = interiorScene.getBoundingClientRect();
+    
+    const exitLineEl = document.querySelector('.restaurant-exit-line');
+    if (exitLineEl) {
+        const exitLineRect = exitLineEl.getBoundingClientRect();
+        const exitDistance = Math.abs(playerRect.top + playerRect.height / 2 - exitLineRect.top);
+        restaurantNearDoor = exitDistance < 80;
+        if (exitHint) exitHint.classList.toggle('show', restaurantNearDoor);
+    }
+    
+    const menuSignEl = document.querySelector('.restaurant-menu-sign');
+    if (menuSignEl) {
+        const menuSignRect = menuSignEl.getBoundingClientRect();
+        const menuDistance = Math.hypot(
+            playerRect.left + playerRect.width / 2 - (menuSignRect.left + menuSignRect.width / 2),
+            playerRect.top + playerRect.height / 2 - (menuSignRect.top + menuSignRect.height / 2)
+        );
+        const nearMenu = menuDistance < 100;
+        
+        if (menuHint) {
+            if (nearMenu) {
+                menuHint.style.display = 'block';
+                menuHint.style.left = (menuSignRect.left - sceneRect.left + menuSignRect.width / 2 - 50) + 'px';
+                menuHint.style.top = (menuSignRect.top - sceneRect.top - 40) + 'px';
+            } else {
+                menuHint.style.display = 'none';
+            }
+        }
+    }
+}
+
+function isNearRestaurantExit() {
+    return restaurantNearDoor;
+}
+
+function isNearRestaurantMenu() {
+    const playerEl = document.querySelector('.player-in-restaurant');
+    const menuSignEl = document.querySelector('.restaurant-menu-sign');
+    if (!playerEl || !menuSignEl) return false;
+    
+    const playerRect = playerEl.getBoundingClientRect();
+    const menuSignRect = menuSignEl.getBoundingClientRect();
+    const menuDistance = Math.hypot(
+        playerRect.left + playerRect.width / 2 - (menuSignRect.left + menuSignRect.width / 2),
+        playerRect.top + playerRect.height / 2 - (menuSignRect.top + menuSignRect.height / 2)
+    );
+    return menuDistance < 100;
+}
+
+function openRestaurantMenu() {
+    document.getElementById('restaurant-menu-modal').classList.add('show');
+}
+
+function closeRestaurantMenu() {
+    document.getElementById('restaurant-menu-modal').classList.remove('show');
 }
 
 function formatTime(hour, minute) {
@@ -974,14 +1173,31 @@ function playOrderSound() {
 function showFoodTray() {
     const tray = document.getElementById('food-tray');
     const trayFood = document.getElementById('tray-food');
-    let foodEmojis = '';
-    preparedOrder.forEach(itemKey => {
+    
+    trayFood.innerHTML = '';
+    
+    const offsets = [
+        { x: -10, y: -8, scale: 1 },
+        { x: 10, y: -5, scale: 0.9 },
+        { x: -5, y: 8, scale: 0.85 },
+        { x: 8, y: 5, scale: 0.8 }
+    ];
+    
+    preparedOrder.forEach((itemKey, index) => {
         const item = menuItems[itemKey];
         if (item) {
-            foodEmojis += item.emoji;
+            const offset = offsets[index % offsets.length];
+            const foodEl = document.createElement('div');
+            foodEl.className = 'tray-food-item';
+            foodEl.textContent = item.emoji;
+            foodEl.style.left = '50%';
+            foodEl.style.top = '50%';
+            foodEl.style.transform = `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px)) scale(${offset.scale})`;
+            foodEl.style.zIndex = 10 + index;
+            trayFood.appendChild(foodEl);
         }
     });
-    trayFood.textContent = foodEmojis;
+    
     tray.style.display = 'flex';
     showNotification('🔔 您的餐品已备好！');
 }
@@ -991,48 +1207,71 @@ function takeTray() {
     const trayFood = document.getElementById('tray-food');
     if (tray.style.display !== 'flex') return;
     
-    heldFoodEmojis = trayFood.textContent;
     isHoldingTray = true;
     
     const heldTray = document.getElementById('held-tray');
-    heldTray.textContent = heldFoodEmojis;
+    renderHeldTray(heldTray);
     heldTray.style.display = 'flex';
     
+    updateHeldTrayPosition();
+    
     tray.style.display = 'none';
-    trayFood.textContent = '';
+    trayFood.innerHTML = '';
     showNotification('🍽️ 已取走餐盘，找个座位坐下吧');
 }
 
-function placeTray() {
+function renderHeldTray(container) {
+    container.innerHTML = '';
+    
+    const offsets = [
+        { x: -6, y: -5, scale: 1 },
+        { x: 6, y: -3, scale: 0.85 },
+        { x: -3, y: 5, scale: 0.75 },
+        { x: 5, y: 3, scale: 0.7 }
+    ];
+    
+    preparedOrder.forEach((itemKey, index) => {
+        const item = menuItems[itemKey];
+        if (item) {
+            const offset = offsets[index % offsets.length];
+            const foodEl = document.createElement('div');
+            foodEl.className = 'tray-food-item';
+            foodEl.textContent = item.emoji;
+            foodEl.style.left = '50%';
+            foodEl.style.top = '50%';
+            foodEl.style.transform = `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px)) scale(${offset.scale})`;
+            foodEl.style.zIndex = 10 + index;
+            container.appendChild(foodEl);
+        }
+    });
+}
+
+function placeTray(targetTable) {
     if (!isHoldingTray) return;
     
     const tableLeft = document.getElementById('table-tray-left');
     const tableRight = document.getElementById('table-tray-right');
     
-    const playerEl = document.querySelector('.player-in-store');
-    const playerRect = playerEl.getBoundingClientRect();
-    const tableLeftRect = tableLeft.getBoundingClientRect();
-    const tableRightRect = tableRight.getBoundingClientRect();
-    
-    const distToLeft = Math.hypot(playerRect.left - tableLeftRect.left, playerRect.top - tableLeftRect.top);
-    const distToRight = Math.hypot(playerRect.left - tableRightRect.left, playerRect.top - tableRightRect.top);
-    
-    if (distToLeft < distToRight) {
-        tableLeft.textContent = heldFoodEmojis;
-        tableLeft.style.display = 'flex';
+    let targetTableEl;
+    if (targetTable === 'left') {
+        targetTableEl = tableLeft;
         currentTrayTable = 'left';
-    } else {
-        tableRight.textContent = heldFoodEmojis;
-        tableRight.style.display = 'flex';
+    } else if (targetTable === 'right') {
+        targetTableEl = tableRight;
         currentTrayTable = 'right';
+    } else {
+        return;
     }
+    
+    renderHeldTray(targetTableEl);
+    targetTableEl.style.display = 'flex';
     
     isHoldingTray = false;
     heldFoodEmojis = '';
     
     const heldTray = document.getElementById('held-tray');
     heldTray.style.display = 'none';
-    heldTray.textContent = '';
+    heldTray.innerHTML = '';
     
     showNotification('🍽️ 将餐盘放到桌上');
 }
@@ -1040,24 +1279,26 @@ function placeTray() {
 function eatFood() {
     const tableId = currentTrayTable === 'left' ? 'table-tray-left' : 'table-tray-right';
     const tableTray = document.getElementById(tableId);
-    if (!tableTray || tableTray.style.display !== 'flex') return;
-    
-    const foodEmojis = tableTray.textContent;
-    const foods = foodEmojis.split('');
+    const interiorScene = document.querySelector('.interior-scene');
+    if (!tableTray || !interiorScene || tableTray.style.display !== 'flex') return;
     
     const tableRect = tableTray.getBoundingClientRect();
-    const tablePosition = { left: tableRect.left + tableRect.width / 2, top: tableRect.top + tableRect.height / 2 };
+    const sceneRect = interiorScene.getBoundingClientRect();
+    const tablePosition = { 
+        left: tableRect.left - sceneRect.left + tableRect.width / 2, 
+        top: tableRect.top - sceneRect.top + tableRect.height / 2 
+    };
     
     tableTray.style.display = 'none';
     tableTray.textContent = '';
     
     showNotification('🍴 开始用餐...');
     
-    animateEating(foods, 0, tablePosition);
+    animateEating(0, tablePosition);
 }
 
-function animateEating(foods, index, tablePosition) {
-    if (index >= foods.length) {
+function animateEating(index, tablePosition) {
+    if (index >= preparedOrder.length) {
         showNotification('✅ 用餐完毕！');
         preparedOrder = [];
         currentTrayTable = null;
@@ -1065,18 +1306,27 @@ function animateEating(foods, index, tablePosition) {
     }
     
     const playerEl = document.querySelector('.player-in-store');
+    const interiorScene = document.querySelector('.interior-scene');
+    if (!playerEl || !interiorScene) return;
+    
     const playerRect = playerEl.getBoundingClientRect();
-    const playerX = playerRect.left + playerRect.width / 2;
-    const playerY = playerRect.top + playerRect.height / 3;
+    const sceneRect = interiorScene.getBoundingClientRect();
+    
+    const playerX = playerRect.left - sceneRect.left + playerRect.width / 2;
+    const playerY = playerRect.top - sceneRect.top + playerRect.height / 3;
+    
+    const itemKey = preparedOrder[index];
+    const item = menuItems[itemKey];
+    const emoji = item ? item.emoji : '🍽️';
     
     const animationEl = document.createElement('div');
     animationEl.className = 'eating-animation food-item';
-    animationEl.textContent = foods[index];
+    animationEl.textContent = emoji;
     animationEl.style.left = tablePosition.left + 'px';
     animationEl.style.top = tablePosition.top + 'px';
     animationEl.style.transform = 'translate(-50%, -50%) scale(1)';
     
-    document.querySelector('.interior-scene').appendChild(animationEl);
+    interiorScene.appendChild(animationEl);
     
     setTimeout(() => {
         animationEl.style.left = playerX + 'px';
@@ -1087,13 +1337,11 @@ function animateEating(foods, index, tablePosition) {
     setTimeout(() => {
         animationEl.remove();
         
-        const itemKey = preparedOrder[index];
-        const item = menuItems[itemKey];
         if (item) {
             applyEffects(item.effects);
         }
         
-        animateEating(foods, index + 1, tablePosition);
+        animateEating(index + 1, tablePosition);
     }, 1000);
 }
 
@@ -1108,8 +1356,8 @@ function updateHeldTrayPosition() {
     const playerRect = playerEl.getBoundingClientRect();
     const sceneRect = interiorScene.getBoundingClientRect();
     
-    const relativeLeft = playerRect.right - sceneRect.left + 10;
-    const relativeTop = playerRect.top - sceneRect.top + playerRect.height / 2 - 17;
+    const relativeLeft = playerRect.right - sceneRect.left - 10;
+    const relativeTop = playerRect.top - sceneRect.top + playerRect.height / 2 - 15;
     
     heldTray.style.left = relativeLeft + 'px';
     heldTray.style.top = relativeTop + 'px';
@@ -1142,10 +1390,20 @@ document.querySelectorAll('.order-item-checkbox').forEach(checkbox => {
 });
 
 function exitInterior() {
-    document.getElementById('fastfood-interior').classList.remove('show');
+    const fastfoodInterior = document.getElementById('fastfood-interior');
+    const restaurantInterior = document.getElementById('restaurant-interior');
+    
+    if (fastfoodInterior && fastfoodInterior.classList.contains('show')) {
+        fastfoodInterior.classList.remove('show');
+        showNotification('🚶 离开了快餐店');
+        addLog('离开了🍔快餐店');
+    } else if (restaurantInterior && restaurantInterior.classList.contains('show')) {
+        restaurantInterior.classList.remove('show');
+        showNotification('🚶 离开了餐厅');
+        addLog('离开了🍜餐厅');
+    }
+    
     isInInterior = false;
-    showNotification('🚶 离开了快餐店');
-    addLog('离开了🍔快餐店');
 }
 
 function isNearDoor() {
@@ -1188,9 +1446,12 @@ function isNearTable() {
     const playerEl = document.querySelector('.player-in-store');
     const tableLeft = document.querySelector('.table-left');
     const tableRight = document.querySelector('.table-right');
-    if (!playerEl) return false;
+    if (!playerEl) return null;
     
     const playerRect = playerEl.getBoundingClientRect();
+    
+    let nearLeft = false;
+    let nearRight = false;
     
     if (tableLeft) {
         const tableRect = tableLeft.getBoundingClientRect();
@@ -1199,7 +1460,7 @@ function isNearTable() {
             playerRect.top + playerRect.height / 2 - (tableRect.top + tableRect.height / 2)
         );
         if (distance < 90) {
-            return true;
+            nearLeft = true;
         }
     }
     
@@ -1210,11 +1471,29 @@ function isNearTable() {
             playerRect.top + playerRect.height / 2 - (tableRect.top + tableRect.height / 2)
         );
         if (distance < 90) {
-            return true;
+            nearRight = true;
         }
     }
     
-    return false;
+    if (nearLeft && nearRight) {
+        const playerCenterX = playerRect.left + playerRect.width / 2;
+        const leftTableRect = tableLeft.getBoundingClientRect();
+        const rightTableRect = tableRight.getBoundingClientRect();
+        const leftCenterX = leftTableRect.left + leftTableRect.width / 2;
+        const rightCenterX = rightTableRect.left + rightTableRect.width / 2;
+        
+        if (playerCenterX < (leftCenterX + rightCenterX) / 2) {
+            return 'left';
+        } else {
+            return 'right';
+        }
+    } else if (nearLeft) {
+        return 'left';
+    } else if (nearRight) {
+        return 'right';
+    }
+    
+    return null;
 }
 
 function isNearTableTray() {
@@ -1273,6 +1552,8 @@ function checkInteriorCollision(newX, newY, playerWidth, playerHeight) {
 }
 
 function updateInteriorMovement() {
+    if (isSleepTime) return;
+    
     let speed = player.speed;
     if (STATS.food <= 0 || STATS.water <= 0 || STATS.energy <= 0) {
         speed = player.speed / 4;
@@ -1362,12 +1643,9 @@ function updateDoorHint() {
             const tableRight = document.querySelector('.table-right');
             let targetRect;
             
-            const distToLeft = Math.hypot(playerRect.left - (tableLeft?.getBoundingClientRect().left || 0), playerRect.top - (tableLeft?.getBoundingClientRect().top || 0));
-            const distToRight = Math.hypot(playerRect.left - (tableRight?.getBoundingClientRect().left || 0), playerRect.top - (tableRight?.getBoundingClientRect().top || 0));
-            
-            if (distToLeft < distToRight && tableLeft) {
+            if (nearTable === 'left' && tableLeft) {
                 targetRect = tableLeft.getBoundingClientRect();
-            } else if (tableRight) {
+            } else if (nearTable === 'right' && tableRight) {
                 targetRect = tableRight.getBoundingClientRect();
             }
             
@@ -1476,6 +1754,19 @@ function showNotification(text) {
 function showSleepOptions() {
     clearInterval(timeInterval);
     timeInterval = null;
+    
+    const fastfoodInterior = document.getElementById('fastfood-interior');
+    const restaurantInterior = document.getElementById('restaurant-interior');
+    
+    if (fastfoodInterior && fastfoodInterior.classList.contains('show')) {
+        fastfoodInterior.classList.remove('show');
+    }
+    if (restaurantInterior && restaurantInterior.classList.contains('show')) {
+        restaurantInterior.classList.remove('show');
+    }
+    
+    isInInterior = false;
+    
     document.getElementById('sleep-modal').style.display = 'flex';
 }
 
@@ -1644,6 +1935,18 @@ function bookRoom(roomId) {
 }
 
 function sleepInHotel(room) {
+    const fastfoodInterior = document.getElementById('fastfood-interior');
+    const restaurantInterior = document.getElementById('restaurant-interior');
+    
+    if (fastfoodInterior && fastfoodInterior.classList.contains('show')) {
+        fastfoodInterior.classList.remove('show');
+    }
+    if (restaurantInterior && restaurantInterior.classList.contains('show')) {
+        restaurantInterior.classList.remove('show');
+    }
+    
+    isInInterior = false;
+    
     STATS.energy = Math.min(100, STATS.energy + room.energyGain);
     STATS.health = Math.max(0, STATS.health - room.healthLoss);
     
